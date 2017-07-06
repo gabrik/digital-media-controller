@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.fourthline.cling.DefaultUpnpServiceConfiguration;
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.UpnpServiceImpl;
@@ -37,6 +39,7 @@ import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDAServiceId;
 import org.fourthline.cling.registry.DefaultRegistryListener;
 import org.fourthline.cling.registry.Registry;
+import org.fourthline.cling.support.avtransport.callback.Pause;
 import org.fourthline.cling.support.avtransport.callback.Play;
 import org.fourthline.cling.support.avtransport.callback.SetAVTransportURI;
 import org.fourthline.cling.support.avtransport.callback.Stop;
@@ -45,6 +48,10 @@ import org.fourthline.cling.support.model.BrowseFlag;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
+import org.fourthline.cling.support.renderingcontrol.callback.GetMute;
+import org.fourthline.cling.support.renderingcontrol.callback.GetVolume;
+import org.fourthline.cling.support.renderingcontrol.callback.SetMute;
+import org.fourthline.cling.support.renderingcontrol.callback.SetVolume;
 import org.json.JSONArray;
 
 /**
@@ -65,6 +72,9 @@ public class DMCUpnpListener extends DefaultRegistryListener {
     JSONArray listDevice = new JSONArray();
     Collection<Device> collectionDevice;
     DeviceItem deviceFound;
+    
+    public static int volume=-1;
+    public static boolean mute;
 
     public DMCUpnpListener(UpnpService upnpService) {
         this.upnpService = upnpService;
@@ -78,19 +88,30 @@ public class DMCUpnpListener extends DefaultRegistryListener {
                 if (service.getServiceType().getType().equals("ContentDirectory")) {
                     final String serviceUUID = service.getReference().getUdn().toString().split("uuid:")[1];
                     DiscoveryService.getmServerServices().put(serviceUUID, service);
-                    DiscoveryService.browseServer(service);
+                    try {
+
+                        DiscoveryService.browseServer(service);
+
+                    } catch (InterruptedException | ExecutionException ex) {
+                        Logger.getLogger(DMCUpnpListener.class.getName()).log(Level.SEVERE, null, ex);
+                    }
                 }
             }
         }
-        if(device.getType().getType().equals("MediaRenderer")){
-             for (RemoteService service : device.getServices()) {
+        if (device.getType().getType().equals("MediaRenderer")) {
+            for (RemoteService service : device.getServices()) {
                 if (service.getServiceType().getType().equals("AVTransport")) {
                     final String serviceUUID = service.getReference().getUdn().toString().split("uuid:")[1];
                     DiscoveryService.getmRendererServices().put(serviceUUID, service);
-                    //DiscoveryService.browseServer(service);
+                }
+                 if (service.getServiceType().getType().equals("RenderingControl")) {
+                    final String serviceUUID = service.getReference().getUdn().toString().split("uuid:")[1];
+                    DiscoveryService.getmControlServices().put(serviceUUID, service);
+
                 }
             }
         }
+        
     }
 
     public JSONformat getJSON(DeviceItem deviceFound) {
@@ -124,15 +145,14 @@ public class DMCUpnpListener extends DefaultRegistryListener {
     @Override
     public void beforeShutdown(Registry registry) {
 
-        for (String n : DiscoveryService.getmContentMap().keySet()) {
+        /*for (String n : DiscoveryService.getmContentMap().keySet()) {
             ConcurrentHashMap<String, String> dir = DiscoveryService.getmContentMap().get(n);
 
             for (String k2 : dir.keySet()) {
                 DiscoveryService.browseServerDirectory(DiscoveryService.getmServerServices().get(n), k2);
             }
 
-        }
-
+        }*/
         Gson g = new Gson();
         this.collectionDevice = registry.getDevices();
         LinkedList<Device> devices = new LinkedList<>();
@@ -179,85 +199,12 @@ public class DMCUpnpListener extends DefaultRegistryListener {
  
         }
     }*/
+    public void playContent(final Service service) throws InterruptedException, ExecutionException {
 
-    public void setContent(final Service service, final String videoURL, final String videoTitle) throws InterruptedException, ExecutionException {
-
-        System.out.println("setContent started");
-        
         UpnpService ser = new UpnpServiceImpl();
-        
+
         Future wait_to_finish;
-        
-        
-         ActionCallback setStopAction = new Stop(service) {
 
-            @Override
-
-            public void failure(ActionInvocation invocation,
-                    UpnpResponse operation, String defaultMsg) {
-
-                System.out.println("AV Action Error " + defaultMsg);
-
-            }
-
-            @Override
-            public void success(ActionInvocation invocation) {
-                super.success(invocation); 
-                System.out.println("AV Action Success " + invocation.toString());
-            }
-            
-            
-
-        };
-        
-           
-        setStopAction.setControlPoint(ser.getControlPoint());
-        wait_to_finish=ser.getControlPoint().execute(setStopAction);
-        
-        
-        wait_to_finish.get();
-        
-        
-        
-        
-        
-        Thread.sleep(5000);
-        
-        //id=\""+item_id+"\" parentID=\""+parent_id+"\" DA METTERE AL TAG ITEM SE SERVONO
-        String METADATA="<DIDL-Lite xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\" xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\"><item restricted=\"0\" dlna:dlnaManaged=\"4\"><dc:title>"+videoTitle+"</dc:title><upnp:class>object.item.videoItem</upnp:class><dc:date>2011-07-26T16:52:00</dc:date><res protocolInfo=\"http-get:*:video/mp4:*\" size=\"67220492\" dlna:resumeUpload=\"0\">"+videoURL+"</res></item></DIDL-Lite>";
-        
-        System.out.println("Metadata: " + METADATA);
-        
-        ActionCallback setAVTransportURIAction = new SetAVTransportURI(service, videoURL,METADATA) {
-
-            @Override
-
-            public void failure(ActionInvocation invocation,
-                    UpnpResponse operation, String defaultMsg) {
-
-                System.out.println("AV Action Error " + defaultMsg);
-
-            }
-
-            @Override
-            public void success(ActionInvocation invocation) {
-                super.success(invocation); 
-                System.out.println("AV Action Success " + invocation.toString());
-            }
-            
-            
-
-        };
-        
-        setAVTransportURIAction.setControlPoint(ser.getControlPoint());
-       
-        wait_to_finish=ser.getControlPoint().execute(setAVTransportURIAction);
-        
-        //Thread.sleep(1000);
-        wait_to_finish.get();
-         
-        
-        
         ActionCallback setPlayAVAction = new Play(service) {
 
             @Override
@@ -271,23 +218,329 @@ public class DMCUpnpListener extends DefaultRegistryListener {
 
             @Override
             public void success(ActionInvocation invocation) {
-                super.success(invocation); 
+                super.success(invocation);
                 System.out.println("AV Action Success " + invocation.toString());
             }
-            
-            
 
         };
-        
-        
+
         setPlayAVAction.setControlPoint(ser.getControlPoint());
-        wait_to_finish=ser.getControlPoint().execute(setPlayAVAction);
-        
-        
+        wait_to_finish = ser.getControlPoint().execute(setPlayAVAction);
+
         wait_to_finish.get();
-        
+
+        ser.shutdown();
+
+    }
+
+    public void pauseContent(final Service service) throws InterruptedException, ExecutionException {
+
+        UpnpService ser = new UpnpServiceImpl();
+
+        Future wait_to_finish;
+
+        ActionCallback setPauseAVAction = new Pause(service) {
+
+            @Override
+
+            public void failure(ActionInvocation invocation,
+                    UpnpResponse operation, String defaultMsg) {
+
+                System.out.println("AV Action Error " + defaultMsg);
+
+            }
+
+            @Override
+            public void success(ActionInvocation invocation) {
+                super.success(invocation);
+                System.out.println("AV Action Success " + invocation.toString());
+            }
+
+        };
+
+        setPauseAVAction.setControlPoint(ser.getControlPoint());
+        wait_to_finish = ser.getControlPoint().execute(setPauseAVAction);
+
+        wait_to_finish.get();
+
+        ser.shutdown();
+
+    }
+
+    public void stopContent(final Service service) throws InterruptedException, ExecutionException {
+
+        UpnpService ser = new UpnpServiceImpl();
+
+        Future wait_to_finish;
+
+        ActionCallback setStopAVAction = new Stop(service) {
+
+            @Override
+
+            public void failure(ActionInvocation invocation,
+                    UpnpResponse operation, String defaultMsg) {
+
+                System.out.println("AV Action Error " + defaultMsg);
+
+            }
+
+            @Override
+            public void success(ActionInvocation invocation) {
+                super.success(invocation);
+                System.out.println("AV Action Success " + invocation.toString());
+            }
+
+        };
+
+        setStopAVAction.setControlPoint(ser.getControlPoint());
+        wait_to_finish = ser.getControlPoint().execute(setStopAVAction);
+
+        wait_to_finish.get();
+
+        ser.shutdown();
+
+    }
+
+    public void setContent(final Service service, final String videoURL, final String videoTitle) throws InterruptedException, ExecutionException {
+
+        System.out.println("setContent started");
+
+        UpnpService ser = new UpnpServiceImpl();
+
+        Future wait_to_finish;
+
+        ActionCallback setStopAction = new Stop(service) {
+
+            @Override
+
+            public void failure(ActionInvocation invocation,
+                    UpnpResponse operation, String defaultMsg) {
+
+                System.out.println("AV Action Error " + defaultMsg);
+
+            }
+
+            @Override
+            public void success(ActionInvocation invocation) {
+                super.success(invocation);
+                System.out.println("AV Action Success " + invocation.toString());
+            }
+
+        };
+
+        setStopAction.setControlPoint(ser.getControlPoint());
+        wait_to_finish = ser.getControlPoint().execute(setStopAction);
+
+        wait_to_finish.get();
+
+        Thread.sleep(5000);
+
+        //id=\""+item_id+"\" parentID=\""+parent_id+"\" DA METTERE AL TAG ITEM SE SERVONO
+        String METADATA = "<DIDL-Lite xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\" xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\"><item restricted=\"0\" dlna:dlnaManaged=\"4\"><dc:title>" + videoTitle + "</dc:title><upnp:class>object.item.videoItem</upnp:class><dc:date>2011-07-26T16:52:00</dc:date><res protocolInfo=\"http-get:*:video/mp4:*\" size=\"67220492\" dlna:resumeUpload=\"0\">" + videoURL + "</res></item></DIDL-Lite>";
+
+        System.out.println("Metadata: " + METADATA);
+
+        ActionCallback setAVTransportURIAction = new SetAVTransportURI(service, videoURL, METADATA) {
+
+            @Override
+
+            public void failure(ActionInvocation invocation,
+                    UpnpResponse operation, String defaultMsg) {
+
+                System.out.println("AV Action Error " + defaultMsg);
+
+            }
+
+            @Override
+            public void success(ActionInvocation invocation) {
+                super.success(invocation);
+                System.out.println("AV Action Success " + invocation.toString());
+            }
+
+        };
+
+        setAVTransportURIAction.setControlPoint(ser.getControlPoint());
+
+        wait_to_finish = ser.getControlPoint().execute(setAVTransportURIAction);
+
+        //Thread.sleep(1000);
+        wait_to_finish.get();
+
+        ActionCallback setPlayAVAction = new Play(service) {
+
+            @Override
+
+            public void failure(ActionInvocation invocation,
+                    UpnpResponse operation, String defaultMsg) {
+
+                System.out.println("AV Action Error " + defaultMsg);
+
+            }
+
+            @Override
+            public void success(ActionInvocation invocation) {
+                super.success(invocation);
+                System.out.println("AV Action Success " + invocation.toString());
+            }
+
+        };
+
+        setPlayAVAction.setControlPoint(ser.getControlPoint());
+        wait_to_finish = ser.getControlPoint().execute(setPlayAVAction);
+
+        wait_to_finish.get();
+
         ser.shutdown();
     }
+
+    public int getVolume(final Service service, final UpnpService ser) throws InterruptedException, ExecutionException {
+
+        //UpnpService ser = new UpnpServiceImpl();
+        Future wait_to_finish;
+    
+
+        ActionCallback getVolumeAVAction = new GetVolume(service) {
+
+            @Override
+
+            public void failure(ActionInvocation invocation,
+                    UpnpResponse operation, String defaultMsg) {
+
+                System.out.println("AV Action Error " + defaultMsg);
+
+            }
+
+            @Override
+            public void success(ActionInvocation invocation) {
+                super.success(invocation);
+                System.out.println("AV Action Success " + invocation.toString());
+            }
+
+            @Override
+            public void received(ActionInvocation ai, int i) {
+                System.out.println("AV Action Success " + ai.toString() + " Volume " + i);
+                volume=i;
+            }
+
+        };
+
+        getVolumeAVAction.setControlPoint(ser.getControlPoint());
+        wait_to_finish = ser.getControlPoint().execute(getVolumeAVAction);
+
+      
+        return volume;
+        //ser.shutdown();
+
+    }
+    
+    
+    public boolean getMute(final Service service, final UpnpService ser) throws InterruptedException, ExecutionException {
+
+        //UpnpService ser = new UpnpServiceImpl();
+        Future wait_to_finish;
+
+        ActionCallback getVolumeAVAction = new GetMute(service) {
+
+            @Override
+
+            public void failure(ActionInvocation invocation,
+                    UpnpResponse operation, String defaultMsg) {
+
+                System.out.println("AV Action Error " + defaultMsg);
+
+            }
+
+            @Override
+            public void success(ActionInvocation invocation) {
+                super.success(invocation);
+                System.out.println("AV Action Success " + invocation.toString());
+            }
+
+            @Override
+            public void received(ActionInvocation ai, boolean bln) {
+               System.out.println("AV Action Success " + ai.toString() + " mute is " + bln);
+               mute=bln;
+            }
+
+          
+
+        };
+
+        getVolumeAVAction.setControlPoint(ser.getControlPoint());
+        wait_to_finish = ser.getControlPoint().execute(getVolumeAVAction);
+
+        return mute;
+        //ser.shutdown();
+
+    }
+    
+
+    public void setVolume(final Service service, int flag,int volume,boolean mute) throws InterruptedException, ExecutionException {
+
+        UpnpService ser = new UpnpServiceImpl();
+        Future wait_to_finish;
+        ActionCallback setVolumeAction = null;
+       
+        switch (flag) {
+            case 0: //volup
+
+                setVolumeAction = new SetVolume(service, volume) {
+
+                    @Override
+
+                    public void failure(ActionInvocation invocation,
+                            UpnpResponse operation, String defaultMsg) {
+
+                        System.out.println("AV Action Error " + defaultMsg);
+
+                    }
+
+                    @Override
+                    public void success(ActionInvocation invocation) {
+                        super.success(invocation);
+                        System.out.println("AV Action Success " + invocation.toString());
+                    }
+
+                };
+                break;
+          
+            case 1: //mute
+
+                 
+                setVolumeAction = new  SetMute(service, mute) {
+
+                    @Override
+
+                    public void failure(ActionInvocation invocation,
+                            UpnpResponse operation, String defaultMsg) {
+
+                        System.out.println("AV Action Error " + defaultMsg);
+
+                    }
+
+                    @Override
+                    public void success(ActionInvocation invocation) {
+                        super.success(invocation);
+                        System.out.println("AV Action Success " + invocation.toString());
+                    }
+
+                };
+                break;
+            default:
+                break;
+                
+        }
+
+        setVolumeAction.setControlPoint(ser.getControlPoint());
+        wait_to_finish = ser.getControlPoint().execute(setVolumeAction);
+
+        wait_to_finish.get();
+
+        ser.shutdown();
+
+    }
+
+   
 
     ////////////////
 }

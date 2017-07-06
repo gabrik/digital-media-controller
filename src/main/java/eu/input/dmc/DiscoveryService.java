@@ -48,6 +48,7 @@ public class DiscoveryService {
     private static ConcurrentHashMap<String, ConcurrentHashMap<String, String>> mContentMap;
     private static ConcurrentHashMap<String, RemoteService> mServerServices;
     private static ConcurrentHashMap<String, RemoteService> mRendererServices;
+    private static ConcurrentHashMap<String, RemoteService> mControlServices;
     private static ConcurrentHashMap<String, ConcurrentHashMap<String, String>> mVideoMap;
     
 
@@ -65,7 +66,7 @@ public class DiscoveryService {
         return mInstance;
     }*/
 
-    public static void initialize() throws InterruptedException {
+    public static void initialize() throws InterruptedException, ExecutionException {
 
         mInstance = new DiscoveryService();
         jsonListOfDevices = mInstance.getListener().getListDevice();
@@ -98,17 +99,20 @@ public class DiscoveryService {
 
     }
 
-    private DiscoveryService() throws InterruptedException {
+    private DiscoveryService() throws InterruptedException, ExecutionException {
         mVideoMap = new ConcurrentHashMap<>();
         mServerServices = new ConcurrentHashMap<>();
         mRendererServices = new ConcurrentHashMap<>();
         mContentMap = new ConcurrentHashMap<>();
+        mControlServices = new ConcurrentHashMap<>();
         
         upnpService = new UpnpServiceImpl();
         listener = new DMCUpnpListener(upnpService);
         upnpService.getRegistry().addListener(listener);
         upnpService.getControlPoint().search(new STAllHeader());
         Thread.sleep(7000);
+        DiscoveryService.browse();
+        
         upnpService.shutdown();
     }
 
@@ -123,10 +127,32 @@ public class DiscoveryService {
     public void stopUpnpService(){
         upnpService.shutdown();
     }
+    
+    
+    
+    public static void browse() throws InterruptedException, ExecutionException{
+        
+        //DiscoveryService.upnpService=new UpnpServiceImpl();
+        
+        for (String n : DiscoveryService.getmContentMap().keySet()) {
+            ConcurrentHashMap<String, String> dir = DiscoveryService.getmContentMap().get(n);
 
-    public static void browseServerDirectory(RemoteService service, String containerID) {
+            for (String k2 : dir.keySet()) {
+                DiscoveryService.browseServerDirectory(DiscoveryService.getmServerServices().get(n), k2);
+            }
+        }
+        
+        //DiscoveryService.upnpService.shutdown();
+        
+    }
+    
+    
+
+    public static void browseServerDirectory(RemoteService service, String containerID) throws InterruptedException, ExecutionException {
         final String serviceUUID = service.getReference().getUdn().toString().split("uuid:")[1];
         System.out.printf("Discovering directory %s on %s\n", containerID, serviceUUID);
+        
+        
         DiscoveryService.upnpService.getControlPoint().execute(new Browse(service, containerID, BrowseFlag.DIRECT_CHILDREN) {
 
             @Override
@@ -135,7 +161,9 @@ public class DiscoveryService {
                 List<Item> mItemList = didl.getItems();
                 if (mItemList.size() > 0) {
                     System.out.printf("Item List size %d\n", mItemList.size());
-                    mVideoMap.put(serviceUUID, new ConcurrentHashMap<>());
+                    
+                    if(!mVideoMap.containsKey(serviceUUID))
+                        mVideoMap.put(serviceUUID, new ConcurrentHashMap<>());
                     for (Item i : didl.getItems()) {
                         String title = i.getTitle();
                         String id = i.getFirstResource().getValue();
@@ -147,7 +175,7 @@ public class DiscoveryService {
 
             @Override
             public void updateStatus(Browse.Status arg0) {
-                System.out.println("UpdateStatus!!! discovery content");
+                System.out.println("UpdateStatus!!! discovery content " + arg0.toString());
             }
 
             ;
@@ -160,12 +188,12 @@ public class DiscoveryService {
 
     }
 
-    );
+    ).get();
         
     }
     
     
-    public static void browseServer(RemoteService service) {
+    public static void browseServer(RemoteService service) throws InterruptedException, ExecutionException {
         final String serviceUUID = service.getReference().getUdn().toString().split("uuid:")[1];
         System.out.println(serviceUUID);
         System.out.printf("Discovering on %s\n", serviceUUID);
@@ -178,7 +206,8 @@ public class DiscoveryService {
                 List<Container> mContainerList = didl.getContainers();
                 if (mContainerList.size() > 0) {
                     System.out.printf("number of dirs: %d\n", mContainerList.size());
-                    mContentMap.put(serviceUUID, new ConcurrentHashMap<>());
+                    if(!mContentMap.containsKey(serviceUUID))
+                        mContentMap.put(serviceUUID, new ConcurrentHashMap<>());
                     for (Container c : didl.getContainers()) {
                         String title = c.getTitle();
                         String id = c.getId();
@@ -204,22 +233,42 @@ public class DiscoveryService {
 
     }
 
-    );
+    ).get();
         
         
     }
     
     
-    public static void playOn(String uuid_server,String uuid_client,String url) throws InterruptedException, ExecutionException{
+    public static void startOn(String uuid_server,String uuid_client,String url) throws InterruptedException, ExecutionException{
         Service mClient = mRendererServices.get(uuid_client);
         ConcurrentHashMap<String,String> mMedia = mVideoMap.get(uuid_server);
         String name = mMedia.get(url);
         
         mInstance.listener.setContent(mClient, url, name);
-        
-        
-        
     }
+    
+    public static void playOn(String uuid_client) throws InterruptedException, ExecutionException{
+        Service mClient = mRendererServices.get(uuid_client);
+        mInstance.listener.playContent(mClient);
+    }
+    
+    
+    public static void pauseOn(String uuid_client) throws InterruptedException, ExecutionException{
+        Service mClient = mRendererServices.get(uuid_client);
+        mInstance.listener.pauseContent(mClient);
+    }
+    
+    
+    public static void changeVolume(String uuid_client,int flag,int volume,boolean mute) throws InterruptedException, ExecutionException{
+        Service mClient = mControlServices.get(uuid_client);
+        mInstance.listener.setVolume(mClient, flag,volume,mute);
+    }
+    
+    public static void stopOn(String uuid_client) throws InterruptedException, ExecutionException{
+        Service mClient = mRendererServices.get(uuid_client);
+        mInstance.listener.stopContent(mClient);
+    }
+    
     
     
     public static String getJsonListOfDevices() {
@@ -252,6 +301,11 @@ public class DiscoveryService {
         return mRendererServices;
     }
 
+    public static ConcurrentHashMap<String, RemoteService> getmControlServices() {
+        return mControlServices;
+    }
+
+    
 
 
 }

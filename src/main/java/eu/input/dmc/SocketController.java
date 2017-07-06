@@ -87,7 +87,7 @@ public synchronized String getRequest() throws InterruptedException{
 
 public synchronized void sendResponse(String response) throws InterruptedException, IOException{
     System.out.println("Invio " + response);
-    out.write(response);
+    out.write(response+"\n");
     out.flush();
  }
 
