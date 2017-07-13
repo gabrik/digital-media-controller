@@ -6,6 +6,35 @@
     <version>0.1</version>
     <packaging>jar</packaging>
     
+    
+      <build>
+    <plugins>
+      <!-- any other plugins -->
+      <plugin>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+          </descriptorRefs>
+          <archive>
+          <manifest>
+            <addClasspath>true</addClasspath>
+            <classpathPrefix>lib/</classpathPrefix>
+            <mainClass>eu.input.dmc.Controller</mainClass>
+          </manifest>
+        </archive>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
    
     
     <dependencies>

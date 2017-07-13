@@ -15,16 +15,37 @@ public class Controller {
 
     private static final int PORT = 50051;
 
+    private static DMCUpnpDiscoveryManager mDiscoveryManager;
+    
     public static void main(String[] args) {
 
         try {
-            DiscoveryService.initialize();
+            //DiscoveryService.initialize();
             //DiscoveryService.browse();
             /*Thread.sleep(7000);
             DiscoveryService.getInstance().stopUpnpService();*/
-            System.out.printf("Devices: %s\n", DiscoveryService.getJsonListOfDevices());
-            System.out.printf("Contents: %s\n", DiscoveryService.getJsonListOfContents());
+            //System.out.printf("Devices: %s\n", DiscoveryService.getJsonListOfDevices());
+            //System.out.printf("Contents: %s\n", DiscoveryService.getJsonListOfContents());
+            
+            
+            DMCUpnpDiscoveryManager.initInstance();
+            mDiscoveryManager=DMCUpnpDiscoveryManager.getInstance();
+            
+            mDiscoveryManager.init();
+            mDiscoveryManager.discover();
+            
+            
+            System.out.printf("Devices: %s\n", mDiscoveryManager.getJsonListOfDevices());
+            System.out.printf("Contents: %s\n", mDiscoveryManager.getJsonListOfContents());
+            
 
+            
+            
+            //to catch Ctrl-C
+            Runtime.getRuntime().addShutdownHook(new Thread() { @Override public void run() { mDiscoveryManager.stop(); }});
+            
+            //mDiscoveryManager.startOn("898f9738-d930-4db4-a3cf-dc4a3ea8caff", "6f9e7063-e588-1b8f-6290-5dcbfe0cf1d0", "http://192.168.34.27:49152/web/2.mp4");
+            
             String request;
             String response;
             SocketController socket;
@@ -52,10 +73,11 @@ public class Controller {
                 switch (jsonRequest.getString("operation")) {
 
                     case "scan":
-                        DiscoveryService.initialize();
+                        //DiscoveryService.initialize();
+                        mDiscoveryManager.discover();
                         //DiscoveryService.browse();
-                        System.out.printf("Devices: %s\n", DiscoveryService.getJsonListOfDevices());
-                        System.out.printf("Contents: %s\n", DiscoveryService.getJsonListOfContents());
+                        System.out.printf("Devices: %s\n", mDiscoveryManager.getJsonListOfDevices());
+                        System.out.printf("Contents: %s\n", mDiscoveryManager.getJsonListOfContents());
                         jsonResponse.put("status", "success");
                         socket.sendResponse(jsonResponse.toString());
                         socket.close();
@@ -63,18 +85,18 @@ public class Controller {
 
                     case "device list":
                         System.out.println("Sending UPNP/DLNA Devices");
-                        socket.sendResponse(DiscoveryService.getJsonListOfDevices());
+                        socket.sendResponse(mDiscoveryManager.getJsonListOfDevices());
                         socket.close();
                         break;
                     case "media list":
                         System.out.println("Sending Contents on Media Servers");
-                        socket.sendResponse(DiscoveryService.getJsonListOfContents());
+                        socket.sendResponse(mDiscoveryManager.getJsonListOfContents());
                         socket.close();
                         break;
 
                     case "start":
                         System.out.println("Starting a Content");
-                        DiscoveryService.startOn(jsonRequest.getString("server_uuid"), jsonRequest.getString("client_uuid"), jsonRequest.getString("url"));
+                        mDiscoveryManager.startOn(jsonRequest.getString("server_uuid"), jsonRequest.getString("client_uuid"), jsonRequest.getString("url"));
 
                         jsonResponse.put("status", "success");
                         socket.sendResponse(jsonResponse.toString());
@@ -82,35 +104,35 @@ public class Controller {
                         break;
                     case "play":
                         System.out.println("Playing a Content");
-                        DiscoveryService.playOn(jsonRequest.getString("client_uuid"));
+                        mDiscoveryManager.playOn(jsonRequest.getString("client_uuid"));
                         jsonResponse.put("status", "success");
                         socket.sendResponse(jsonResponse.toString());
                         socket.close();
                         break;
                     case "stop":
                         System.out.println("Stopping a Content");
-                        DiscoveryService.stopOn(jsonRequest.getString("client_uuid"));
+                        mDiscoveryManager.stopOn(jsonRequest.getString("client_uuid"));
                         jsonResponse.put("status", "success");
                         socket.sendResponse(jsonResponse.toString());
                         socket.close();
                         break;
                     case "pause":
                         System.out.println("Pause a Content");
-                        DiscoveryService.pauseOn(jsonRequest.getString("client_uuid"));
+                        mDiscoveryManager.pauseOn(jsonRequest.getString("client_uuid"));
                         jsonResponse.put("status", "success");
                         socket.sendResponse(jsonResponse.toString());
                         socket.close();
                         break;
                     case "vol":
                         System.out.println("Playing a Content");
-                        DiscoveryService.changeVolume(jsonRequest.getString("client_uuid"),0,Integer.parseInt(jsonRequest.getString("volume")),false);
+                        mDiscoveryManager.changeVolume(jsonRequest.getString("client_uuid"),0,Integer.parseInt(jsonRequest.getString("volume")),false);
                         jsonResponse.put("status", "success");
                         socket.sendResponse(jsonResponse.toString());
                         socket.close();
                         break;
                     case "mute":
                         System.out.println("Playing a Content");
-                        DiscoveryService.changeVolume(jsonRequest.getString("client_uuid"),1,0,jsonRequest.getBoolean("value"));
+                        mDiscoveryManager.changeVolume(jsonRequest.getString("client_uuid"),1,0,jsonRequest.getBoolean("value"));
                         jsonResponse.put("status", "success");
                         socket.sendResponse(jsonResponse.toString());
                         socket.close();
@@ -123,6 +145,7 @@ public class Controller {
             }
         } catch (InterruptedException | IOException | ClassNotFoundException | NullPointerException ex) {
             Logger.getLogger(Controller.class.getName()).log(Level.SEVERE, null, ex);
+            mDiscoveryManager.stop();
             System.exit(-1);
         } catch (ExecutionException ex) {
             Logger.getLogger(Controller.class.getName()).log(Level.SEVERE, null, ex);
