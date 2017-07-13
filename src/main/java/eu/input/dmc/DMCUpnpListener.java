@@ -53,6 +53,7 @@ import org.fourthline.cling.support.renderingcontrol.callback.GetVolume;
 import org.fourthline.cling.support.renderingcontrol.callback.SetMute;
 import org.fourthline.cling.support.renderingcontrol.callback.SetVolume;
 import org.json.JSONArray;
+import org.json.JSONObject;
 
 /**
  *
@@ -99,6 +100,7 @@ public class DMCUpnpListener extends DefaultRegistryListener {
                     try {
 
                         mManager.browseServer(service);
+                        //mManager.browse();
 
                     } catch (InterruptedException | ExecutionException ex) {
                         Logger.getLogger(DMCUpnpListener.class.getName()).log(Level.SEVERE, null, ex);
@@ -126,6 +128,45 @@ public class DMCUpnpListener extends DefaultRegistryListener {
         
     }
 
+   
+    
+    
+    
+
+
+    @Override
+    public void remoteDeviceUpdated(Registry registry, RemoteDevice device) {
+        System.out.println("Device Updated: " + device.getDetails().getFriendlyName() + " UUID: " + device.getIdentity().getUdn());
+        System.out.println("Type: " + device.getType().getType() + "\n\n");
+        if (device.getType().getType().equals("MediaServer")) {
+            for (RemoteService service : device.getServices()) {
+                if (service.getServiceType().getType().equals("ContentDirectory")) {
+                    final String serviceUUID = service.getReference().getUdn().toString().split("uuid:")[1];
+                    if(mManager.getmServerServices().containsKey(serviceUUID)){
+                        try {
+                            
+                            mManager.getmVideoMap().remove(serviceUUID);  
+                            mManager.getmContentMap().remove(serviceUUID);
+                            mManager.getmDirMap().remove(serviceUUID);
+                            //mDirMap.clear();
+
+                            mManager.browseServer(service);
+                            mManager.browse();
+
+                    } catch (InterruptedException | ExecutionException ex) {
+                        Logger.getLogger(DMCUpnpListener.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                    }
+                    //mManager.getmServerServices().put(serviceUUID, service);
+                    
+                }
+            }
+        }
+        
+    }
+    
+    
+
     public JSONformat getJSON(DeviceItem deviceFound) {
         JSONformat deviceToSend = new JSONformat();
 
@@ -141,10 +182,49 @@ public class DMCUpnpListener extends DefaultRegistryListener {
 
     @Override
     public void remoteDeviceRemoved(Registry registry, RemoteDevice device) {
-        Service serviceRender;
-        DeviceDetails details = device.getDetails();
-        if ((serviceRender = device.findService(avTrasportService)) != null) {
-            System.out.println("Servizio non più disponibile: " + serviceRender.toString());
+        
+        
+        JSONObject deviceJson;
+        
+        for(int i=0;i<listDevice.length();i++){
+            deviceJson=listDevice.getJSONObject(i);
+            if(deviceJson.getString("uuid").compareTo(new DeviceItem((RemoteDevice) device).toJSON().getString("uuid"))==0)
+                listDevice.remove(i);
+        }
+        
+       if (device.getType().getType().equals("MediaServer")) {
+            for (RemoteService service : device.getServices()) {
+                if (service.getServiceType().getType().equals("ContentDirectory")) {
+                    final String serviceUUID = service.getReference().getUdn().toString().split("uuid:")[1];
+                    if(mManager.getmServerServices().containsKey(serviceUUID)){
+ 
+                            
+                            mManager.getmVideoMap().remove(serviceUUID);  
+                            mManager.getmContentMap().remove(serviceUUID);
+                            mManager.getmDirMap().remove(serviceUUID);
+
+                    }
+                    //mManager.getmServerServices().put(serviceUUID, service);
+                    
+                }
+            }
+       }
+        if (device.getType().getType().equals("MediaRenderer")) {
+            for (RemoteService service : device.getServices()) {
+                if (service.getServiceType().getType().equals("AVTransport")) {
+                    final String serviceUUID = service.getReference().getUdn().toString().split("uuid:")[1];
+                    if(mManager.getmRendererServices().containsKey(serviceUUID))
+                            mManager.getmRendererServices().remove(serviceUUID);  
+                    
+                }
+                 if (service.getServiceType().getType().equals("RenderingControl")) {
+                    final String serviceUUID = service.getReference().getUdn().toString().split("uuid:")[1];
+                    if(mManager.getmControlServices().containsKey(serviceUUID))
+                            mManager.getmControlServices().remove(serviceUUID);  
+                    
+
+                }
+            }
         }
 
     }
@@ -172,10 +252,15 @@ public class DMCUpnpListener extends DefaultRegistryListener {
         }*/
 
     }
+    
+    
 
     @Override
     public void afterShutdown() {
-        System.out.println("Ricerca Terminata");
+        System.out.println("DMC Server Closed");
+         
+        
+       
     }
 
     ///// AGGIUNTE DA GABRIELE 

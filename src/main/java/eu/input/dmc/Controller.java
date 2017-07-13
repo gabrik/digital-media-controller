@@ -67,11 +67,15 @@ public class Controller {
                 //"{'operation':'pause','client_uuid':'ccc'}"
                 //"{'operation':'vol','client_uuid':'ccc','volume':volume}"
                 
-                //"{'operation':'mute','client_uuid':'ccc'}"
+                 //"{'operation':'mute','client_uuid':'ccc'}"
                 switch (jsonRequest.getString("operation")) {
 
                     case "scan":
                         //DiscoveryService.initialize();
+                        //mDiscoveryManager.stop();
+                        //DMCUpnpDiscoveryManager.initInstance();
+                        //mDiscoveryManager=DMCUpnpDiscoveryManager.getInstance();
+                        //mDiscoveryManager.init();
                         mDiscoveryManager.discover();
                         //DiscoveryService.browse();
                         System.out.printf("Devices: %s\n", mDiscoveryManager.getJsonListOfDevices());

@@ -86,9 +86,21 @@ public class DMCUpnpDiscoveryManager {
     
     
     public void discover() throws InterruptedException, ExecutionException{
+        
+        /*mVideoMap.clear();
+        mServerServices.clear();
+        mRendererServices.clear();
+        mContentMap.clear();
+        mControlServices.clear();
+        mDirMap.clear();*/
+        
         upnpService.getControlPoint().search(new STAllHeader());
+        
         Thread.sleep(7000);
-        browse();
+        System.out.println("Cerco nella cartella");
+
+        
+        //browse();
         
         jsonListOfDevices = listener.getListDevice();
         
@@ -166,8 +178,10 @@ public class DMCUpnpDiscoveryManager {
                         String title = i.getTitle();
                         String id = i.getFirstResource().getValue();
                         System.out.printf("ITEM: title %s id %s url %s\n", title, i.getId(), id);
-                        mVideoMap.get(serviceUUID).put(id, title);
-                        mDirMap.get(containerID).add(id);
+                        if(!mVideoMap.get(serviceUUID).containsKey(id))
+                           mVideoMap.get(serviceUUID).put(id, title);
+                        //if(!mDirMap.get(serviceUUID).contains(id))
+                           mDirMap.get(containerID).add(id);
                                 
                         
                     
@@ -215,8 +229,9 @@ public class DMCUpnpDiscoveryManager {
                         String title = c.getTitle();
                         String id = c.getId();
                         System.out.printf("DIR: name %s id %s\n", title, id);
-                        mContentMap.get(serviceUUID).put(id, title);
-
+                        if(!mContentMap.get(serviceUUID).containsKey(id))
+                            mContentMap.get(serviceUUID).put(id, title);
+                        
                     }
                 }
             }
@@ -306,6 +321,10 @@ public class DMCUpnpDiscoveryManager {
 
     public ConcurrentHashMap<String, RemoteService> getmControlServices() {
         return mControlServices;
+    }
+
+    public ConcurrentHashMap<String, List<String>> getmDirMap() {
+        return mDirMap;
     }
     
     
