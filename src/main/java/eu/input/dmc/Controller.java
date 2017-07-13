@@ -39,8 +39,6 @@ public class Controller {
             System.out.printf("Contents: %s\n", mDiscoveryManager.getJsonListOfContents());
             
 
-            
-            
             //to catch Ctrl-C
             Runtime.getRuntime().addShutdownHook(new Thread() { @Override public void run() { mDiscoveryManager.stop(); }});
             
